@@ -1,5 +1,5 @@
 {
-    "name": "frequenc1/php-osc",
+    "name": "ahihi/php-osc",
     "type": "library",
     "description": "Open Sound Control (OSC) Client Library for PHP",
     "authors": [
@@ -10,6 +10,10 @@
         {
             "name": "Jason Soares",
             "email": "jsoares@theexperiment.org"
+        },
+        {
+            "name": "pulusound",
+            "email": "miranda@pulusound.fi"
         }
     ],
     "require": {
