@@ -23,16 +23,18 @@ class OSCClient
     var $sock = null;
     var $address = null;
     var $port = null;
+    var $socket_manager = null;
     static $_arch_little_endian = false;
     static $_arch_twos_complement = false;
 
-    function __construct($address = null, $port = null)
+    function __construct($address = null, $port = null, $socket_manager = null)
     {
         $this->checkPlatform();
         $this->address = $address;
         $this->port = $port;
+        $this->socket_manager = $socket_manager ?? self::default_socket_manager();
 
-        if (($this->sock = socket_create(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        if (($this->sock = $this->socket_manager->create([$this, 'error'])) === null) {
             $this->error("Could not create datagram socket.");
         }
     }
@@ -47,14 +49,14 @@ class OSCClient
 
     // You can enable this part if you have PHP 4.3.0 or later...
     function enable_broadcast() {
-        if(($ret = socket_set_option($this->sock, SOL_SOCKET, SO_BROADCAST, 1)) < 0) {
-            $this->error("Failed to enable broadcast option.");
+        if(!$this->socket_manager->enable_broadcast($this->sock, [$this, 'error'])) {
+            $this->error("Failed to enable broadcast option.");            
         }
     }
 
     function disable_broadcast() {
-        if(($ret = socket_set_option($this->sock, SOL_SOCKET, SO_BROADCAST, 0)) < 0) {
-            $this->error("Failed to disable broadcast option.");
+        if(!$this->socket_manager->disable_broadcast($this->sock, [$this, 'error'])) {
+            $this->error("Failed to disable broadcast option.");            
         }
     }
 
@@ -79,14 +81,9 @@ class OSCClient
         if (is_object($message)) {
             $message = $message->get_binary();
         }
-        if (($ret = socket_sendto($this->sock, $message, strlen($message), 0, $this->address, $this->port)) < 0) {
+        if (!$this->socket_manager->send($this->sock, $this->address, $this->port, $message, [$this, 'error'])) {
             $this->error("Transmission failure.");
         }
-        if ($ret != strlen($message)) {
-            $mlen = strlen($message);
-            $this->error("Could not send the entire message, only $ret bytes were sent, of $mlen total");
-        }
-        return $ret;
     }
 
     /** Report a fatal error.
@@ -109,7 +106,7 @@ class OSCClient
         }
     }
 
-// Test if this machine uses twos complement representation
+    // Test if this machine uses twos complement representation
     function test_twos_complement()
     {
         $cpu_int = pack("i", -1); // Machine dependent
@@ -153,4 +150,33 @@ class OSCClient
         }
     }
 
+
+    static function default_socket_manager() {
+        return new class {
+            public function create($error) {
+                $sock = socket_create(AF_INET, SOCK_DGRAM, 0);
+                return $sock < 0 ? null : $sock;
+            }
+
+            public function enable_broadcast($sock, $error) {
+                return !(socket_set_option($this->sock, SOL_SOCKET, SO_BROADCAST, 1) < 0);
+            }
+
+            public function disable_broadcast($sock, $error) {
+                return !(socket_set_option($this->sock, SOL_SOCKET, SO_BROADCAST, 0) < 0);
+            }
+
+            public function send($sock, $address, $port, $message, $error) {
+                $len = strlen($message);
+                $ret = socket_sendto($sock, $message, $len, 0, $address, $port);
+                if($ret < 0) {
+                    return false;
+                }
+                if($ret != $len) {
+                    $error("Could not send the entire message, only $ret bytes were sent, of $len total");
+                }
+                return true;
+            }
+        };
+    }
 }
