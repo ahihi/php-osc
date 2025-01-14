@@ -10,6 +10,9 @@ namespace PhpOSC;
  */
 class Timetag
 {
+    public $sec;
+    public $frac_sec;
+    
     function __construct($sec = 0, $frac_sec = 1)
     {
         $this->sec = $sec;
